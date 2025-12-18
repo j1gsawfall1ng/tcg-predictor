@@ -3,60 +3,93 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
+import requests
 
-# --- CONFIGURATION DE LA PAGE ---
+# --- CONFIGURATION ---
 st.set_page_config(page_title="TCG Market Predictor", layout="wide")
+st.title("⚡ TCG Market AI : Real-Time Data")
 
-st.title("⚡ TCG Market AI : Prédiction de prix")
-st.markdown("Analyse de tendance et prédiction algorithmique pour cartes de collection.")
-
-# --- BARRE LATÉRALE (Inputs) ---
-st.sidebar.header("Paramètres de la Carte")
-card_name = st.sidebar.text_input("Nom de la carte", "Dracaufeu Base Set 1st Ed.")
-current_price = st.sidebar.number_input("Dernier prix vendu (€)", value=3500)
-volatility = st.sidebar.slider("Volatilité du marché", 0.1, 1.0, 0.3)
-
-# --- GÉNÉRATION DE DONNÉES SIMULÉES (DATA MOCK) ---
-# On crée un historique fictif de 6 mois pour montrer qu'on sait gérer de la data
-np.random.seed(42)
-days = np.arange(1, 180)
-# Formule pour créer une courbe réaliste avec du bruit aléatoire
-prices = 2000 + (days * 15) + np.random.normal(0, 200 * volatility, len(days))
-
-df = pd.DataFrame({'Jour': days, 'Prix': prices})
-
-# --- PARTIE INTELLIGENCE ARTIFICIELLE (Machine Learning) ---
-# Préparation des données pour le modèle
-X = df[['Jour']]
-y = df['Prix']
-
-# Entraînement du modèle (Régression Linéaire)
-model = LinearRegression()
-model.fit(X, y)
-
-# Prédiction pour les 30 prochains jours
-future_days = np.arange(180, 210).reshape(-1, 1)
-future_prices = model.predict(future_days)
-
-# --- VISUALISATION ---
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader(f"📊 Analyse : {card_name}")
-    st.line_chart(df.set_index('Jour'))
-
-with col2:
-    st.subheader("🤖 Prédiction IA (30 jours)")
+# --- FONCTION POUR CHERCHER LA CARTE (API) ---
+def get_card_data(card_name):
+    # On interroge l'API Pokémon TCG
+    url = f"https://api.pokemontcg.io/v2/cards?q=name:{card_name}&pageSize=1"
+    response = requests.get(url)
+    data = response.json()
     
-    # Calcul de la tendance
-    trend = "HAUSSIÈRE 📈" if future_prices[-1] > prices[-1] else "BAISSIÈRE 📉"
-    predicted_val = round(future_prices[-1], 2)
-    
-    st.metric(label="Prix prédit à J+30", value=f"{predicted_val} €", delta=trend)
-    
-    st.write("Le modèle de régression linéaire analyse l'historique pour projeter la tendance future. "
-             "Outil d'aide à la décision pour investisseurs TCG.")
+    if data['data']:
+        card = data['data'][0]
+        # On essaie de trouver un prix, sinon on met une valeur par défaut
+        try:
+            price = card['tcgplayer']['prices']['holofoil']['market']
+        except:
+            try:
+                price = card['tcgplayer']['prices']['normal']['market']
+            except:
+                price = 50.0 # Prix par défaut si introuvable
+                
+        return {
+            'name': card['name'],
+            'image': card['images']['large'],
+            'price': price,
+            'set': card['set']['name']
+        }
+    return None
 
-# --- FOOTER ---
-st.markdown("---")
-st.caption("Développé avec Python (Pandas, Scikit-Learn, Streamlit) par [TON NOM]")
+# --- SIDEBAR ---
+st.sidebar.header("Recherche")
+search_query = st.sidebar.text_input("Nom de la carte (Anglais)", "Charizard")
+volatility = st.sidebar.slider("Volatilité simulée", 0.1, 1.0, 0.4)
+
+if st.sidebar.button("Analyser le marché"):
+    with st.spinner('Connexion API en cours...'):
+        card_info = get_card_data(search_query)
+        
+        if card_info:
+            st.success(f"Carte trouvée : {card_info['name']}")
+            
+            # --- COLONNES ---
+            col1, col2, col3 = st.columns([1, 2, 1])
+            
+            with col1:
+                st.image(card_info['image'], caption=f"Set: {card_info['set']}")
+            
+            with col2:
+                # --- GÉNÉRATION DES DONNÉES (Simulation basée sur le VRAI prix) ---
+                current_real_price = card_info['price']
+                if current_real_price is None: current_real_price = 100
+                
+                # On crée un historique fictif qui aboutit au prix actuel
+                days = np.arange(1, 180)
+                # On simule une tendance passée pour arriver au prix d'aujourd'hui
+                start_price = current_real_price * (0.8 + np.random.rand() * 0.4) 
+                slope = (current_real_price - start_price) / 180
+                prices = start_price + (days * slope) + np.random.normal(0, current_real_price * volatility * 0.1, len(days))
+                
+                df = pd.DataFrame({'Jour': days, 'Prix': prices})
+                
+                # GRAPHIQUE
+                st.subheader(f"📈 Cours actuel : {current_real_price} $")
+                st.line_chart(df.set_index('Jour'))
+                
+                # --- IA PREDICITION ---
+                X = df[['Jour']]
+                y = df['Prix']
+                model = LinearRegression()
+                model.fit(X, y)
+                
+                future_days = np.arange(180, 210).reshape(-1, 1)
+                pred = model.predict(future_days)[-1]
+                
+                delta = round(pred - current_real_price, 2)
+                st.metric("Prédiction IA (J+30)", f"{round(pred, 2)} $", delta)
+
+            with col3:
+                st.info("ℹ️ Données techniques")
+                st.write(f"**Source:** TCGPlayer API")
+                st.write(f"**Algorithme:** Régression Linéaire")
+                st.write("Le graphique historique est une projection reconstruite basée sur la volatilité du marché.")
+
+        else:
+            st.error("Carte introuvable. Essaie 'Pikachu' ou 'Umbreon'.")
+else:
+    st.write("👈 Entre un nom de Pokémon à gauche (ex: Gengar, Mewtwo) pour lancer l'analyse.")
