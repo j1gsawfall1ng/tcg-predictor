@@ -1,6 +1,6 @@
 # ⚡ TCG Market AI - Pokémon Price Predictor
 
-**Voir la démo en ligne :** [METTRE TON LIEN STREAMLIT ICI]
+**Voir la démo en ligne :** [(https://tcg-predictor-gfmuqkdx8vc6yl8segvmbv.streamlit.app/)]
 
 ## 📝 C'est quoi ce projet ?
 C'est une application web d'analyse de prix pour les cartes Pokémon.
