@@ -4,7 +4,6 @@
 
 ## 📝 C'est quoi ce projet ?
 C'est une application web d'analyse de prix pour les cartes Pokémon.
-N'ayant pas de diplôme mais étant passionné par le code et les TCG (Trading Card Games), j'ai voulu construire un outil concret qui combine les deux.
 
 L'idée : récupérer les infos d'une carte en temps réel et utiliser un algorithme simple pour visualiser une tendance de prix.
 
